@@ -4,6 +4,7 @@ REPODIR="$PWD"
 
 case $1 in
     build)
+        mkdir -p dist
         cat html/main.html > dist/player.html
         ;;
     install)
