@@ -67,13 +67,18 @@
         }
     </style>
     <style>
+        .ttfamily {
+            font-family: 'JetBrains Mono NL', 'Inconsolata', 'Ubuntu Mono', 'Menlo', 'Source Code Pro', monospace;
+        }
+    </style>
+    <style>
         /* Player Panel */
         .playerpanel {
             text-align: center;
             position: fixed;
             bottom: 0px;
             left: 0px;
-            height: 180px;
+            height: 190px;
             width: 100vw;
             background: #F5F5F5;
         }
@@ -118,6 +123,9 @@
                     onclick="app.didClickPlayPauseButton()">Play</button>
                 <button id="js-btnNavNext" onclick="app.playNextInLibrary({})">&gt;</button>
             </div>
+            <div id="js-panelPlaybackProgress" class="ttfamily" style="height: 1.5em; padding: 10px 0 0;">
+                00:00 / 00:00
+            </div>
         </div>
         <div class="albumpop"></div>
     </div>
@@ -133,6 +141,8 @@
             window.activeAlbumPath = null;
             window.activeTrackPath = null;
             window.playerActiveTrackIndex = 0;
+            window.hasEverStartedPlaying = false;
+            window.playbackProgressUpdaterHandle = window.setInterval(app.playbackProgressUpdater, 250);
         };
 
         // Basic logic
@@ -218,6 +228,7 @@
             };
             window.activeAlbumPath = trackinfo.dirpath;
             if (!opts.asPaused) {
+                window.hasEverStartedPlaying = true;
                 window.StaticPlayerDaemon.play();
                 app.setPlayPauseButtonState('playing');
             };
@@ -275,6 +286,21 @@
                 app.setActiveTrack(desiredTrackPath, {});
             };
         };
+        app.convertSecondsToMinSecFormat = function (seconds) {
+            const mins_int = Math.floor(seconds/60);
+            const remsecs_int = seconds % 60;
+            const mins_str = mins_int < 10 ? '0' + mins_int.toString() : mins_int.toString();
+            const remsecs_str = remsecs_int < 10 ? '0' + remsecs_int.toString() : remsecs_int.toString();
+            return mins_str + ':' + remsecs_str;
+        };
+        app.playbackProgressUpdater = function () {
+            if (!window.hasEverStartedPlaying) { return 0; };
+            const tNow = Math.floor(StaticPlayerDaemon.currentTime);
+            const tEnd = Math.floor(StaticPlayerDaemon.duration);
+            const tNow2 = app.convertSecondsToMinSecFormat(tNow);
+            const tEnd2 = app.convertSecondsToMinSecFormat(tEnd);
+            document.querySelector('#js-panelPlaybackProgress').innerHTML = `${tNow2} / ${tEnd2}`;
+        };
 
         // HID events
         app.setPlayPauseButtonState = function (state) {
@@ -309,6 +335,7 @@
                 app.setActiveTrack(window.serverAudioFiles[0], {});
             };
             window.playbackState = 'playing';
+            window.hasEverStartedPlaying = true;
         };
         app.didClickAlbumTrack = function (target) {
             const trackpath = target.getAttribute('data-trackpath');
