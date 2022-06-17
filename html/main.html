@@ -53,10 +53,6 @@
             padding: 0 0 7px;
         }
 
-        .albumTrackItem:hover {
-            color: #08D;
-        }
-
         .album--betterPath {
             font-size: 18px;
             cursor: pointer;
@@ -64,6 +60,10 @@
 
         .albumTrack--title {
             cursor: pointer;
+        }
+
+        .albumTrack--title:hover {
+            color: #07C;
         }
     </style>
     <style>
@@ -116,7 +116,7 @@
                 <button id="js-btnNavPrev" onclick="app.playPrevInLibrary()">&lt;</button>
                 <button id="js-btnPlayAndPause" data-state="paused"
                     onclick="app.didClickPlayPauseButton()">Play</button>
-                <button id="js-btnNavNext" onclick="app.playNextInLibrary()">&gt;</button>
+                <button id="js-btnNavNext" onclick="app.playNextInLibrary({})">&gt;</button>
             </div>
         </div>
         <div class="albumpop"></div>
@@ -130,6 +130,7 @@
         app.init = function () {
             window.playQueue = [];
             window.playbackState = 'paused';
+            window.activeAlbumPath = null;
             window.activeTrackPath = null;
             window.playerActiveTrackIndex = 0;
         };
@@ -182,19 +183,19 @@
             const savedTrackPath = localStorage[lskey];
             if (serverAudioFiles.indexOf(savedTrackPath) !== -1) {
                 // Can find the track
-                app.setActiveTrack(savedTrackPath, true);
+                app.setActiveTrack(savedTrackPath, { asPaused: true });
             } else {
-                app.setActiveTrack(serverAudioFiles[0], true);
+                app.setActiveTrack(serverAudioFiles[0], { asPaused: true });
             };
         };
-        app.setActiveTrack = function (trackpath, asPaused) {
+        app.setActiveTrack = function (trackpath, opts) {
             try {
                 window.StaticPlayerDaemon.pause();
                 delete window.StaticPlayerDaemon;
             } catch (e) {
             };
             window.StaticPlayerDaemon = new Audio(trackpath);
-            
+
             window.StaticPlayerDaemon.onended = app.evTrackEnd;
             window.StaticPlayerDaemon.loop = false;
             window.StaticPlayerDaemon.playbackRate = 1;
@@ -206,7 +207,17 @@
             document.querySelector('#js-activeTrackAlbum').innerHTML = trackinfo.betterDirpath;
             app.setAlbumExpandState(app.getAlbumNodeByDirpath(trackinfo.dirpath), 'expanded');
 
-            if (!asPaused) {
+            if (opts.isAutomaticNext) {
+                // Automatically playing this track
+                if (trackinfo.dirpath !== window.activeAlbumPath) {
+                    // Moving across different albums, collapse previous album
+                    // const prevAlbumDirpath = trackinfo.dirpath;
+                    const prevAlbumNode = app.getAlbumNodeByDirpath(window.activeAlbumPath);
+                    app.setAlbumExpandState(prevAlbumNode, 'collapsed');
+                };
+            };
+            window.activeAlbumPath = trackinfo.dirpath;
+            if (!opts.asPaused) {
                 window.StaticPlayerDaemon.play();
                 app.setPlayPauseButtonState('playing');
             };
@@ -246,20 +257,22 @@
         // Playback control internal
         app.evTrackEnd = function (e) {
             console.log(e);
-            app.playNextInLibrary()
+            app.playNextInLibrary({
+                isAutomaticNext: true
+            });
         };
-        app.playNextInLibrary = function () {
+        app.playNextInLibrary = function (opts) {
             const nextTrackIndex = window.playerActiveTrackIndex + 1;
             if (nextTrackIndex < window.serverAudioFiles.length) {
                 const desiredTrackPath = window.serverAudioFiles[nextTrackIndex];
-                app.setActiveTrack(desiredTrackPath);
+                app.setActiveTrack(desiredTrackPath, opts);
             };
         };
         app.playPrevInLibrary = function () {
             const prevTrackIndex = window.playerActiveTrackIndex - 1;
             if (prevTrackIndex >= 0) {
                 const desiredTrackPath = window.serverAudioFiles[prevTrackIndex];
-                app.setActiveTrack(desiredTrackPath);
+                app.setActiveTrack(desiredTrackPath, {});
             };
         };
 
@@ -293,13 +306,13 @@
             try {
                 window.StaticPlayerDaemon.play();
             } catch (e) {
-                app.setActiveTrack(window.serverAudioFiles[0]);
+                app.setActiveTrack(window.serverAudioFiles[0], {});
             };
             window.playbackState = 'playing';
         };
         app.didClickAlbumTrack = function (target) {
             const trackpath = target.getAttribute('data-trackpath');
-            app.setActiveTrack(trackpath);
+            app.setActiveTrack(trackpath, {});
         };
         app.setAlbumExpandState = function (albumNode, state) {
             albumNode.setAttribute('data-expanded', state);
@@ -321,7 +334,7 @@
             window.serverAudioFiles = findTxt.trim().split('\n').filter(function (line) {
                 return line.match(/\.(wav|aiff|aif|m4a|flac|ape|mp3|mp4)$/i);
             }).slice(0, 999);
-            
+
             // Generate albums list
             const serverAlbumsMap = {};
             serverAudioFiles.map(function (line) {
@@ -333,7 +346,6 @@
 
             // Load player state cache
             app.lsLoadPlayerState();
-            // app.setActiveTrack(serverAudioFiles[0], true);
         };
 
         const indexXhr = new XMLHttpRequest();
