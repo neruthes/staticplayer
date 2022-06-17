@@ -1,0 +1,191 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Music Player</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            text-rendering: optimizeLegibility;
+        }
+
+        html,
+        body {
+            padding: 0px;
+            margin: 0px;
+        }
+
+        .content-albums {
+            padding: 15px 15px 300px;
+        }
+
+        .content-queue {
+            padding: 15px;
+        }
+
+        .albumslist-album-item {
+            border: 1px solid #666;
+            padding: 15px;
+            margin: 0 0 15px;
+        }
+
+        .album--tracks {
+            padding: 15px 0 0;
+        }
+        .albumslist-album-item[data-expanded="false"] .album--tracks {
+            display: none;
+        }
+
+        .album--betterPath {
+            font-size: 1.5em;
+        }
+    </style>
+    <style>
+        /* Player Panel */
+        .playerpanel {
+            text-align: center;
+            position: fixed;
+            bottom: 0px;
+            left: 0px;
+            height: 150px;
+            width: 100vw;
+            background: #F5F5F5;
+        }
+        .playerpanel--tracktitle {
+            font-size: 20px;
+            padding: 30px 10px;
+        }
+        .playerpanel button {
+            width: 70px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cont">
+        <div class="header"></div>
+        <div class="content">
+            <div class="content-albums"></div>
+            <div class="content-queue"></div>
+        </div>
+        <div class="footer"></div>
+        <div class="playerpanel">
+            <div class="playerpanel--tracktitle" id="js-activeTrackTitle">Not Playing</div>
+            <button onclick="app.didClickPlayButton()">Play</button>
+            <button onclick="app.didClickPauseButton()">Pause</button>
+        </div>
+        <div class="albumpop"></div>
+    </div>
+
+    <!-- To be migrated -->
+    <script>
+        window.app = {};
+        app.init = function () {
+            window.playQueue = [];
+            window.playbackState = 'paused';
+        };
+
+        // Basic logic
+        app.getAlbumTracks = function (dirpath) {
+            return serverAudioFiles.filter(x => x.startsWith(dirpath));
+        };
+        app.getTrackInfo = function (trackpath) {
+            return {
+                trackpath: trackpath,
+                title: trackpath.split('/').reverse()[0]
+            };
+        };
+        app.renderAlbumTrack = function (trackpath) {
+            const trackinfo = app.getTrackInfo(trackpath);
+            return `<div class="albumTrackItem">
+                <div class="albumTrack--title" onclick="app.didClickAlbumTrack(this)" data-trackpath="${trackinfo.trackpath}">${trackinfo.title}</div>
+            </div>`;
+        };
+        app.renderAlbumsList = function () {
+            let albumsList = serverAlbumsArr.map(function (dirpath) {
+                return {
+                    dirpath: dirpath,
+                    betterPath: dirpath.replace(/\//g, ' / '),
+                    tracks: app.getAlbumTracks(dirpath)
+                };
+            });
+            return albumsList.map(function (item) {
+                return `<div class="albumslist-album-item" data-expanded="false" data-dirpath="${item.dirpath}">
+                    <div class="album--betterPath" data-dirpath="${item.dirpath}" onclick="app.didClickToggleAlbumExpand(this)">${item.betterPath}</div>
+                    <div class="album--tracks">${item.tracks.map(track => app.renderAlbumTrack(track)).join('\n')}</div>
+                </div>`;
+            }).join('\n');
+        };
+        app.pushTrackToQueue = function (trackpath) {
+            // TODO
+        };
+        app.setActiveTrack = function (trackpath) {
+            try {
+                window.StaticPlayerDaemon.pause();
+                delete window.StaticPlayerDaemon;
+            } catch (e) {
+            };
+            window.StaticPlayerDaemon = new Audio(trackpath);
+            window.StaticPlayerDaemon.play();
+            window.StaticPlayerDaemon.loop = false;
+            window.StaticPlayerDaemon.playbackRate = 1;
+            const trackinfo = app.getTrackInfo(trackpath);
+            document.querySelector('#js-activeTrackTitle').innerHTML = trackinfo.title;
+        };
+
+        // HID events
+        app.didClickPauseButton = function () {
+            window.StaticPlayerDaemon.pause();
+            window.playbackState = 'paused';
+        };
+        app.didClickPlayButton = function () {
+            try {
+                window.StaticPlayerDaemon.play();
+            } catch (e) {
+                app.setActiveTrack(window.serverAudioFiles[0]);
+            };
+            window.playbackState = 'playing';
+        };
+        app.didClickAlbumTrack = function (target) {
+            const trackpath = target.getAttribute('data-trackpath');
+            app.setActiveTrack(trackpath);
+        };
+        app.didClickToggleAlbumExpand = function (target) {
+            let dirpath = target.getAttribute('data-dirpath');
+            let albumNode = document.querySelector(`.albumslist-album-item[data-dirpath="${dirpath}"]`);
+            if (albumNode.getAttribute('data-expanded') == 'false') {
+                albumNode.setAttribute('data-expanded', 'true');
+            } else {
+                albumNode.setAttribute('data-expanded', 'false');
+            };
+        };
+    </script>
+    <script>
+        const initializePlayerContext = function (findTxt) {
+            window.findTxt = findTxt;
+            window.serverAudioFiles = findTxt.trim().split('\n').filter(function (line) {
+                return line.match(/\.(wav|aiff|aif|m4a|flac|ape|mp3|mp4)$/i);
+            }).slice(0, 999);
+
+            // Generate albums list
+            const serverAlbumsMap = {};
+            serverAudioFiles.map(function (line) {
+                const dirname = line.split('/').reverse().slice(1).reverse().join('/');
+                serverAlbumsMap[dirname] = dirname;
+            });
+            // window.serverAlbumsArr = Map.values(serverAlbumsMap);
+            window.serverAlbumsArr = Object.keys(serverAlbumsMap);
+            document.querySelector('.content-albums').innerHTML = app.renderAlbumsList();
+        };
+
+        const indexXhr = new XMLHttpRequest();
+        indexXhr.open('GET', '.find.txt');
+        indexXhr.send();
+        indexXhr.addEventListener('load', function () {
+            initializePlayerContext(indexXhr.responseText);
+        });
+
+    </script>
+</body>
+
+</html>
