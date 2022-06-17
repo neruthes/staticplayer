@@ -20,6 +20,7 @@
         .header {
             padding: 30px 0 10px;
         }
+
         h1 {
             text-align: center;
         }
@@ -43,18 +44,26 @@
         .album--tracks {
             padding: 15px 0;
         }
-        .albumslist-album-item[data-expanded="false"] .album--tracks {
+
+        .albumslist-album-item[data-expanded="collapsed"] .album--tracks {
             display: none;
         }
+
         .albumTrackItem {
             padding: 0 0 7px;
         }
+
         .albumTrackItem:hover {
             color: #08D;
         }
 
         .album--betterPath {
             font-size: 18px;
+            cursor: pointer;
+        }
+
+        .albumTrack--title {
+            cursor: pointer;
         }
     </style>
     <style>
@@ -64,18 +73,30 @@
             position: fixed;
             bottom: 0px;
             left: 0px;
-            height: 150px;
+            height: 180px;
             width: 100vw;
             background: #F5F5F5;
         }
+
         .playerpanel--tracktitle {
             font-size: 20px;
-            padding: 30px 10px;
+            padding: 30px 0px 10px;
         }
+
+        .playerpanel--trackalbum {
+            font-size: 16px;
+            color: #666;
+            padding: 0px 10px 20px;
+        }
+
         .playerpanel button {
-            width: 70px;
+            font-size: 16px;
+            width: 80px;
+            margin: 0 10px;
         }
     </style>
+
+    <style id="style-activeTrackMarking"></style>
 </head>
 
 <body>
@@ -90,18 +111,27 @@
         <div class="footer"></div>
         <div class="playerpanel">
             <div class="playerpanel--tracktitle" id="js-activeTrackTitle">Not Playing</div>
-            <button onclick="app.didClickPlayButton()">Play</button>
-            <button onclick="app.didClickPauseButton()">Pause</button>
+            <div class="playerpanel--trackalbum" id="js-activeTrackAlbum">&nbsp;</div>
+            <div>
+                <button id="js-btnNavPrev" onclick="app.playPrevInLibrary()">&lt;</button>
+                <button id="js-btnPlayAndPause" data-state="paused"
+                    onclick="app.didClickPlayPauseButton()">Play</button>
+                <button id="js-btnNavNext" onclick="app.playNextInLibrary()">&gt;</button>
+            </div>
         </div>
         <div class="albumpop"></div>
     </div>
 
     <!-- To be migrated -->
     <script>
-        window.app = {};
+        window.app = {
+            lskey: 'staticplayer:v1:' + location.pathname + ':'
+        };
         app.init = function () {
             window.playQueue = [];
             window.playbackState = 'paused';
+            window.activeTrackPath = null;
+            window.playerActiveTrackIndex = 0;
         };
 
         // Basic logic
@@ -111,13 +141,16 @@
         app.getTrackInfo = function (trackpath) {
             return {
                 trackpath: trackpath,
+                dirpath: trackpath.split('/').reverse().slice(1).reverse().join('/'),
+                betterDirpath: trackpath.split('/').reverse().slice(1).reverse().join(' / '),
                 title: trackpath.split('/').reverse()[0]
             };
         };
         app.renderAlbumTrack = function (trackpath) {
             const trackinfo = app.getTrackInfo(trackpath);
-            return `<div class="albumTrackItem">
-                <div class="albumTrack--title" onclick="app.didClickAlbumTrack(this)" data-trackpath="${trackinfo.trackpath}">${trackinfo.title}</div>
+            return `<div class="albumTrackItem" data-trackpath="${trackinfo.trackpath}">
+                <span class="albumTrack--title" onclick="app.didClickAlbumTrack(this)" data-trackpath="${trackinfo.trackpath}">${trackinfo.title}</span>
+                <span class="albumTrack--playing" data-trackpath="${trackinfo.trackpath}"></span>
             </div>`;
         };
         app.renderAlbumsList = function () {
@@ -129,30 +162,129 @@
                 };
             });
             return albumsList.map(function (item) {
-                return `<div class="albumslist-album-item" data-expanded="false" data-dirpath="${item.dirpath}">
+                return `<div class="albumslist-album-item" data-expanded="collapsed" data-dirpath="${item.dirpath}">
                     <div class="album--betterPath" data-dirpath="${item.dirpath}" onclick="app.didClickToggleAlbumExpand(this)">${item.betterPath}</div>
-                    <div class="album--tracks">${item.tracks.map(track => app.renderAlbumTrack(track)).join('\n')}</div>
+                    <div class="album--tracks">
+                        ${item.tracks.map(track => app.renderAlbumTrack(track)).join('\n')}
+                    </div>
                 </div>`;
             }).join('\n');
         };
         app.pushTrackToQueue = function (trackpath) {
             // TODO
         };
-        app.setActiveTrack = function (trackpath) {
+        app.lsSavePlayerState = function () {
+            const lskey = app.lskey + 'playerState.trackpath';
+            localStorage[lskey] = window.activeTrackPath;
+        };
+        app.lsLoadPlayerState = function () {
+            const lskey = app.lskey + 'playerState.trackpath';
+            const savedTrackPath = localStorage[lskey];
+            if (serverAudioFiles.indexOf(savedTrackPath) !== -1) {
+                // Can find the track
+                app.setActiveTrack(savedTrackPath, true);
+            } else {
+                app.setActiveTrack(serverAudioFiles[0], true);
+            };
+        };
+        app.setActiveTrack = function (trackpath, asPaused) {
             try {
                 window.StaticPlayerDaemon.pause();
                 delete window.StaticPlayerDaemon;
             } catch (e) {
             };
             window.StaticPlayerDaemon = new Audio(trackpath);
-            window.StaticPlayerDaemon.play();
+            
+            window.StaticPlayerDaemon.onended = app.evTrackEnd;
             window.StaticPlayerDaemon.loop = false;
             window.StaticPlayerDaemon.playbackRate = 1;
             const trackinfo = app.getTrackInfo(trackpath);
+            console.log(trackinfo);
+            window.activeTrackPath = trackpath;
+            window.playerActiveTrackIndex = window.serverAudioFiles.indexOf(window.activeTrackPath);
             document.querySelector('#js-activeTrackTitle').innerHTML = trackinfo.title;
+            document.querySelector('#js-activeTrackAlbum').innerHTML = trackinfo.betterDirpath;
+            app.setAlbumExpandState(app.getAlbumNodeByDirpath(trackinfo.dirpath), 'expanded');
+
+            if (!asPaused) {
+                window.StaticPlayerDaemon.play();
+                app.setPlayPauseButtonState('playing');
+            };
+
+            // Disable buttons
+            if (window.playerActiveTrackIndex === window.serverAudioFiles.length - 1) {
+                // Disable next button
+                document.querySelector('#js-btnNavNext').setAttribute('disabled', 'true');
+            } else {
+                document.querySelector('#js-btnNavNext').removeAttribute('disabled');
+            };
+            if (window.playerActiveTrackIndex === 0) {
+                // Disable prev button
+                document.querySelector('#js-btnNavPrev').setAttribute('disabled', 'true');
+            } else {
+                document.querySelector('#js-btnNavPrev').removeAttribute('disabled');
+            };
+
+            // Mark the active track in library view
+            document.querySelector('#style-activeTrackMarking').innerHTML = `
+                .albumTrack--title[data-trackpath="${trackpath}"] {
+                    font-weight: bold;
+                }
+                .albumTrack--playing[data-trackpath="${trackpath}"]::after {
+                    content: " (playing)";
+                    color: #888;
+                    margin: 0 0 0 15px;
+                }
+            `;
+
+            app.lsSavePlayerState();
+        };
+        app.getAlbumNodeByDirpath = function (dirpath) {
+            return document.querySelector(`.albumslist-album-item[data-dirpath="${dirpath}"]`);
+        };
+
+        // Playback control internal
+        app.evTrackEnd = function (e) {
+            console.log(e);
+            app.playNextInLibrary()
+        };
+        app.playNextInLibrary = function () {
+            const nextTrackIndex = window.playerActiveTrackIndex + 1;
+            if (nextTrackIndex < window.serverAudioFiles.length) {
+                const desiredTrackPath = window.serverAudioFiles[nextTrackIndex];
+                app.setActiveTrack(desiredTrackPath);
+            };
+        };
+        app.playPrevInLibrary = function () {
+            const prevTrackIndex = window.playerActiveTrackIndex - 1;
+            if (prevTrackIndex >= 0) {
+                const desiredTrackPath = window.serverAudioFiles[prevTrackIndex];
+                app.setActiveTrack(desiredTrackPath);
+            };
         };
 
         // HID events
+        app.setPlayPauseButtonState = function (state) {
+            const btn = document.querySelector('#js-btnPlayAndPause');
+            btn.innerHTML = state === 'paused' ? 'Play' : 'Pause';
+            btn.setAttribute('data-state', state);
+        };
+        app.getPlayPauseButtonState = function (state) {
+            const btn = document.querySelector('#js-btnPlayAndPause');
+            return btn.getAttribute('data-state');
+        };
+        app.didClickPlayPauseButton = function () {
+            const state = app.getPlayPauseButtonState();
+            if (state === 'paused') {
+                // Play, and become pause button
+                app.didClickPlayButton();
+                app.setPlayPauseButtonState('playing');
+            } else {
+                // Pause, and become play button
+                app.didClickPauseButton();
+                app.setPlayPauseButtonState('paused');
+            };
+        };
         app.didClickPauseButton = function () {
             window.StaticPlayerDaemon.pause();
             window.playbackState = 'paused';
@@ -169,32 +301,39 @@
             const trackpath = target.getAttribute('data-trackpath');
             app.setActiveTrack(trackpath);
         };
+        app.setAlbumExpandState = function (albumNode, state) {
+            albumNode.setAttribute('data-expanded', state);
+        };
         app.didClickToggleAlbumExpand = function (target) {
-            let dirpath = target.getAttribute('data-dirpath');
-            let albumNode = document.querySelector(`.albumslist-album-item[data-dirpath="${dirpath}"]`);
-            if (albumNode.getAttribute('data-expanded') == 'false') {
-                albumNode.setAttribute('data-expanded', 'true');
+            const dirpath = target.getAttribute('data-dirpath');
+            const albumNode = app.getAlbumNodeByDirpath(dirpath);
+            if (albumNode.getAttribute('data-expanded') == 'collapsed') {
+                app.setAlbumExpandState(albumNode, 'expanded');
             } else {
-                albumNode.setAttribute('data-expanded', 'false');
+                app.setAlbumExpandState(albumNode, 'collapsed');
             };
         };
     </script>
     <script>
+        app.init();
         const initializePlayerContext = function (findTxt) {
             window.findTxt = findTxt;
             window.serverAudioFiles = findTxt.trim().split('\n').filter(function (line) {
                 return line.match(/\.(wav|aiff|aif|m4a|flac|ape|mp3|mp4)$/i);
             }).slice(0, 999);
-
+            
             // Generate albums list
             const serverAlbumsMap = {};
             serverAudioFiles.map(function (line) {
                 const dirname = line.split('/').reverse().slice(1).reverse().join('/');
                 serverAlbumsMap[dirname] = dirname;
             });
-            // window.serverAlbumsArr = Map.values(serverAlbumsMap);
             window.serverAlbumsArr = Object.keys(serverAlbumsMap);
             document.querySelector('.content-albums').innerHTML = app.renderAlbumsList();
+
+            // Load player state cache
+            app.lsLoadPlayerState();
+            // app.setActiveTrack(serverAudioFiles[0], true);
         };
 
         const indexXhr = new XMLHttpRequest();
