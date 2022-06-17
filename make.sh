@@ -4,9 +4,11 @@ REPODIR="$PWD"
 
 case $1 in
     build)
+        # We might have a more sophisticated build process in the future...
         mkdir -p dist
         cat html/main.html > dist/player.html
         ;;
+
     install)
         touch install_dirs.txt
         install_dirs="$(cat install_dirs.txt)"
@@ -21,8 +23,10 @@ case $1 in
             cd $idir && find | cut -c3- | sort > .find.txt
         done
         ;;
+
     easy_install)
         ./make.sh build
         ./make.sh install
         ;;
+
 esac
