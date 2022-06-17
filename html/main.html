@@ -27,7 +27,7 @@
 
         .content-albums {
             max-width: 700px;
-            padding: 15px 15px 200px;
+            padding: 15px 15px 50px;
             margin: 0 auto;
         }
 
@@ -65,6 +65,13 @@
         .albumTrack--title:hover {
             color: #07C;
         }
+
+        .footer {
+            font-size: 14px;
+            color: #999;
+            text-align: center;
+            padding: 15px 15px 250px;
+        }
     </style>
     <style>
         .ttfamily {
@@ -78,7 +85,7 @@
             position: fixed;
             bottom: 0px;
             left: 0px;
-            height: 190px;
+            height: 200px;
             width: 100vw;
             background: #F5F5F5;
         }
@@ -114,8 +121,8 @@
             <div class="content-queue"></div>
         </div>
         <div class="footer">
-            This webpage is a stand-alone program for audio file indexing.
-            This program ("StaticPlayer") is a free software (GNU GPL 2.0).
+            This webpage is a stand-alone program for audio file indexing.<br>
+            This program ("StaticPlayer") is a free software (GNU GPL 2.0).<br>
             You may get its source code following <a href="https://github.com/neruthes/staticplayer">this link</a>.
             
         </div>
@@ -128,7 +135,7 @@
                     onclick="app.didClickPlayPauseButton()">Play</button>
                 <button id="js-btnNavNext" onclick="app.playNextInLibrary({})">&gt;</button>
             </div>
-            <div id="js-panelPlaybackProgress" class="ttfamily" style="height: 1.5em; padding: 10px 0 0;">
+            <div id="js-panelPlaybackProgress" class="ttfamily" style="height: 1.5em; padding: 15px 0 0;">
                 00:00 / 00:00
             </div>
         </div>
