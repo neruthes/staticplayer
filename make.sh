@@ -20,7 +20,11 @@ case $1 in
         for idir in $install_dirs; do
             echo "[INFO] Installing 'player.html' to '$idir'."
             cat $REPODIR/dist/player.html > $idir/player.html
-            cd $idir && find | cut -c3- | sort > .find.txt
+            cd $idir
+            rm .find.txt 2>/dev/null
+            for format in flac ape m4a wav aiff aif mp3; do
+                find -name "*.$format" | cut -c3- | sort >> .find.txt
+            done
         done
         ;;
 
