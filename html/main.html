@@ -68,11 +68,13 @@
             text-align: center;
             padding: 15px 15px 250px;
         }
+
     </style>
     <style>
         .ttfamily {
             font-family: 'JetBrains Mono NL', 'Inconsolata', 'Ubuntu Mono', 'Menlo', 'Source Code Pro', monospace;
         }
+
     </style>
     <style>
         /* Player Panel */
@@ -102,6 +104,7 @@
             width: 80px;
             margin: 0 10px;
         }
+
     </style>
 
     <style id="style-activeTrackMarking"></style>
@@ -119,7 +122,7 @@
             This webpage is a stand-alone program for audio file indexing.<br>
             This program ("StaticPlayer") is a free software (GNU GPL 2.0).<br>
             You may get its source code following <a href="https://github.com/neruthes/staticplayer">this link</a>.
-            
+
         </div>
         <div class="playerpanel">
             <div class="playerpanel--tracktitle" id="js-activeTrackTitle">Not Playing</div>
@@ -219,7 +222,7 @@
             console.log(trackinfo);
             window.activeTrackPath = trackpath;
             window.playerActiveTrackIndex = window.serverAudioFiles.indexOf(window.activeTrackPath);
-            document.querySelector('#js-activeTrackTitle').innerHTML = trackinfo.title;
+            document.querySelector('#js-activeTrackTitle').innerHTML = `${trackinfo.title} (${window.playerActiveTrackIndex}/${window.serverAudioFiles.length})`;
             document.querySelector('#js-activeTrackAlbum').innerHTML = trackinfo.betterDirpath;
             app.setAlbumExpandState(app.getAlbumNodeByDirpath(trackinfo.dirpath), 'expanded');
 
@@ -274,9 +277,11 @@
         // Playback control internal
         app.evTrackEnd = function (e) {
             console.log(e);
-            app.playNextInLibrary({
-                isAutomaticNext: true
-            });
+            setTimeout(function () {
+                app.playNextInLibrary({
+                    isAutomaticNext: true
+                });
+            }, 3000); // Wait 3 seconds before playing the next track
         };
         app.playNextInLibrary = function (opts) {
             const nextTrackIndex = window.playerActiveTrackIndex + 1;
@@ -293,7 +298,7 @@
             };
         };
         app.convertSecondsToMinSecFormat = function (seconds) {
-            const mins_int = Math.floor(seconds/60);
+            const mins_int = Math.floor(seconds / 60);
             const remsecs_int = seconds % 60;
             const mins_str = mins_int < 10 ? '0' + mins_int.toString() : mins_int.toString();
             const remsecs_str = remsecs_int < 10 ? '0' + remsecs_int.toString() : remsecs_int.toString();
@@ -366,7 +371,7 @@
             window.findTxt = findTxt;
             window.serverAudioFiles = findTxt.trim().split('\n').filter(function (line) {
                 return line.match(/\.(wav|aiff|aif|m4a|flac|ape|mp3|mp4)$/i);
-            }).slice(0, 999);
+            }).slice(0, 3000);
 
             // Generate albums list
             const serverAlbumsMap = {};
@@ -377,8 +382,23 @@
             window.serverAlbumsArr = Object.keys(serverAlbumsMap);
             document.querySelector('.content-albums').innerHTML = app.renderAlbumsList();
 
-            // Load player state cache
-            app.lsLoadPlayerState();
+            // Parse URL param
+            window.searchParams = {};
+            if (location.search.length > 1) {
+                location.search.slice(1).split('&').map(function (part) {
+                    const [paramKey, paramVal] = part.split('=');
+                    window.searchParams[paramKey] = paramVal;
+                });
+            }
+            // Read URL param 'track'
+            if (Number(window.searchParams['track']) >= 0 && Number(window.searchParams['track']) < window.serverAudioFiles.length) {
+                // Play specified track
+                const paramTrackIndex = Number(window.searchParams['track']);
+                app.setActiveTrack(serverAudioFiles[paramTrackIndex], { asPaused: true });
+            } else {
+                // Load player state cache
+                app.lsLoadPlayerState();
+            };
         };
 
         const indexXhr = new XMLHttpRequest();
