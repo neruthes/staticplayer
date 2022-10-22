@@ -25,6 +25,8 @@ case $1 in
             for format in flac ape m4a wav aiff aif mp3; do
                 find -name "*.$format" | cut -c3- | sort >> .find.txt
             done
+            sort .find.txt > .find.txt.new
+            mv .find.txt.new .find.txt
         done
         ;;
 
