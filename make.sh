@@ -3,13 +3,13 @@
 REPODIR="$PWD"
 
 case $1 in
-    build)
+    b|build)
         # We might have a more sophisticated build process in the future...
         mkdir -p dist
         cat html/main.html > dist/player.html
         ;;
 
-    install)
+    i|install)
         touch install_dirs.txt
         install_dirs="$(cat install_dirs.txt)"
         if [[ -z "$install_dirs" ]]; then
@@ -30,7 +30,7 @@ case $1 in
         done
         ;;
 
-    easy_install)
+    ei|easy_install)
         ./make.sh build
         ./make.sh install
         ;;
